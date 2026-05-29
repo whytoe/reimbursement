@@ -12,6 +12,7 @@
     "postinstall": "prisma generate"
   },
   "dependencies": {
+    "@asteasolutions/zod-to-openapi": "^8.5.0",
     "@auth/prisma-adapter": "^2.11.1",
     "@prisma/client": "^6.19.3",
     "bcryptjs": "^3.0.3",
