@@ -158,7 +158,53 @@ HTTPS URL users hit, otherwise Auth.js cookies and redirects will break.
 
 ---
 
-## 8. Observability (generic)
+## 8. Integration API and outbound webhooks
+
+Beyond the web UI, the app exposes a machine-to-machine integration layer.
+This has deployment implications the base container contract above does not
+cover.
+
+### Surface
+
+- **`/api/v1/*`** — versioned integration endpoints (trips, settings, expenses,
+  reimbursements, webhook-endpoint management). Authenticated with **API keys**,
+  not the web session: callers send `Authorization: Bearer wis_<key>`. Keys are
+  generated once, shown to the user once, and stored **hashed** (SHA-256) in
+  Postgres — there is no separate secret store to provision.
+- **`/api/openapi.json`** and **`/api/docs`** (Swagger UI) — these bypass the
+  NextAuth redirect and are served **publicly with no auth** (intentional: they
+  are the API documentation and contain no secrets). Confirm public exposure is
+  acceptable for your network model; if not, gate them at the ingress.
+
+### Outbound webhooks — egress and SSRF
+
+The app delivers outbound webhooks for integration events
+(`expense.created`, `reimbursement.submitted`, `reimbursement.approved`,
+`reimbursement.paid`). For each event it makes an **outbound HTTPS `POST` to
+URLs that users register at runtime** (`/api/v1/webhooks`). Payloads are signed
+HMAC-SHA256 with a per-endpoint secret (`whsec_…`), sent as the `sha256=` header.
+Delivery is best-effort: 5-second timeout, 2 attempts, no retry on 4xx, **no
+durable queue** — so delivery is not guaranteed and failures are only logged.
+
+Deployment consequences:
+
+- **Egress must be allowed.** The app needs outbound HTTPS to the public
+  internet, or webhooks silently fail. If the platform blocks egress by
+  default, open it (to the public internet only — see next point).
+- **SSRF risk — restrict egress.** Webhook target URLs are user-supplied and
+  the server fetches them. Without network-layer egress filtering, a user could
+  register an internal URL (cloud metadata `http://169.254.169.254/`, RFC1918
+  hosts, `localhost`) and use the app as an SSRF pivot. The delivery code does
+  **not** currently validate URLs against private ranges, so enforce it at the
+  network layer: allow egress to public IPs only and block link-local
+  (169.254.0.0/16), RFC1918 (10/8, 172.16/12, 192.168/16), and loopback.
+- **Latency/scaling.** Delivery happens in the request path; slow webhook
+  receivers can add latency to the triggering API call. Account for this under
+  load.
+
+---
+
+## 9. Observability (generic)
 
 The image writes logs to stdout/stderr — wire them into whatever log
 aggregator the platform provides. Recommended additions (not included by
@@ -171,7 +217,7 @@ default):
 
 ---
 
-## 9. Security checklist before going live
+## 10. Security checklist before going live
 
 - [ ] All four required env vars set via the platform's secret store, not in
       plaintext config.
@@ -181,6 +227,11 @@ default):
 - [ ] `DATABASE_URL` uses `sslmode=require`.
 - [ ] Google Maps API key restricted by HTTP referrer and limited to
       Geocoding + Distance Matrix APIs; billing alerts configured.
+- [ ] Egress restricted to the public internet — link-local (169.254.0.0/16),
+      RFC1918, and loopback blocked — so user-registered webhook URLs can't be
+      abused for SSRF (see §8).
+- [ ] Decided whether `/api/openapi.json` and `/api/docs` should stay publicly
+      reachable or be gated at the ingress (see §8).
 - [ ] Automated Postgres backups verified.
 - [ ] Health checks wired to platform liveness/readiness probes.
 - [ ] Container runs as non-root (already enforced by the Dockerfile).
@@ -188,7 +239,7 @@ default):
 
 ---
 
-## 10. File reference
+## 11. File reference
 
 - `Dockerfile` — multi-stage build producing the runtime image.
 - `.dockerignore` — excludes dev and secret files from the build context.
@@ -197,3 +248,8 @@ default):
 - `prisma/schema.prisma` — database schema.
 - `prisma/migrations/` — ordered migration history applied by
   `prisma migrate deploy`.
+- `src/app/api/v1/` — API-key-authed integration endpoints.
+- `src/lib/apiAuth.ts`, `src/lib/apiKey.ts` — Bearer API-key auth + hashing.
+- `src/lib/webhooks.ts` — outbound webhook signing (HMAC-SHA256) and delivery.
+- `src/lib/openapi/`, `src/app/api/openapi.json`, `src/app/api/docs` — OpenAPI
+  3.1 spec + Swagger UI.
