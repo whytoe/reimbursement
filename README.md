@@ -89,6 +89,10 @@ management) are authenticated with API keys rather than the web session:
 - **Webhooks:** register endpoints via `/api/v1/webhooks`; deliveries are signed
   HMAC-SHA256 (`sha256=` header) with a per-endpoint secret.
 
+See [`docs/integration-api.md`](./docs/integration-api.md) for the full
+integration guide (auth, surface map, webhook envelope/headers, and
+consumer-side signature verification).
+
 ## Project structure
 
 ```
