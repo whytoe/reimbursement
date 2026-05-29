@@ -4,10 +4,15 @@ import {
 } from "@asteasolutions/zod-to-openapi";
 import { z } from "zod";
 import {
+  CreateExpenseSchema,
   CreateTripSchema,
   ErrorSchema,
+  ExpenseSchema,
+  ExpenseStatusSchema,
+  ExpenseTypeSchema,
   SettingsSchema,
   TripSchema,
+  UpdateExpenseSchema,
   UpdateSettingsSchema,
 } from "./schemas";
 

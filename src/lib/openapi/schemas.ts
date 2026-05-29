@@ -67,6 +67,59 @@ export const CreateTripSchema = z
   })
   .openapi("CreateTripRequest");
 
+export const ExpenseTypeSchema = z
+  .enum(["MILEAGE", "MEALS", "LODGING", "SUPPLIES", "OTHER"])
+  .openapi("ExpenseType", { example: "MEALS" });
+
+export const ExpenseStatusSchema = z
+  .enum(["PENDING", "SUBMITTED", "APPROVED", "REJECTED", "REIMBURSED"])
+  .openapi("ExpenseStatus", { example: "PENDING" });
+
+export const ExpenseSchema = z
+  .object({
+    id: z.string(),
+    type: ExpenseTypeSchema,
+    amount: z.number().openapi({ example: 42.5 }),
+    currency: z.string().openapi({ example: "CAD" }),
+    date: z.string().openapi({ format: "date-time" }),
+    description: z.string(),
+    receiptUrl: z.string().nullable(),
+    status: ExpenseStatusSchema,
+    tripId: z.string().nullable(),
+    createdAt: z.string().openapi({ format: "date-time" }),
+    updatedAt: z.string().openapi({ format: "date-time" }),
+  })
+  .openapi("Expense");
+
+export const CreateExpenseSchema = z
+  .object({
+    type: ExpenseTypeSchema,
+    // Optional when linking a MILEAGE expense to a trip — the amount is then
+    // computed from the trip distance and the user's mileage rate.
+    amount: z.number().positive().finite().max(1_000_000).optional(),
+    currency: z.string().min(1).max(10).default("CAD"),
+    date: z.string().optional().openapi({ format: "date-time" }),
+    description: z.string().max(2000).default(""),
+    receiptUrl: z.string().url().max(2000).optional(),
+    status: ExpenseStatusSchema.default("PENDING"),
+    tripId: z.string().optional().openapi({
+      description: "Link this expense to a trip. For MILEAGE expenses, amount is computed if omitted.",
+    }),
+  })
+  .openapi("CreateExpenseRequest");
+
+export const UpdateExpenseSchema = z
+  .object({
+    type: ExpenseTypeSchema.optional(),
+    amount: z.number().positive().finite().max(1_000_000).optional(),
+    currency: z.string().min(1).max(10).optional(),
+    date: z.string().optional().openapi({ format: "date-time" }),
+    description: z.string().max(2000).optional(),
+    receiptUrl: z.string().url().max(2000).nullable().optional(),
+    status: ExpenseStatusSchema.optional(),
+  })
+  .openapi("UpdateExpenseRequest");
+
 export const SettingsSchema = z
   .object({
     startingPointA: z.record(z.string(), z.unknown()).nullable(),

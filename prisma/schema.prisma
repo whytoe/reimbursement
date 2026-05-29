@@ -16,6 +16,42 @@ model User {
   settings     UserSettings?
   trips        Trip[]
   apiKeys      ApiKey[]
+  expenses     Expense[]
+}
+
+enum ExpenseType {
+  MILEAGE
+  MEALS
+  LODGING
+  SUPPLIES
+  OTHER
+}
+
+enum ExpenseStatus {
+  PENDING
+  SUBMITTED
+  APPROVED
+  REJECTED
+  REIMBURSED
+}
+
+model Expense {
+  id          String        @id @default(cuid())
+  userId      String
+  tripId      String?       @unique
+  type        ExpenseType
+  amount      Float
+  currency    String        @default("CAD")
+  date        DateTime      @default(now())
+  description String        @default("")
+  receiptUrl  String?
+  status      ExpenseStatus @default(PENDING)
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+  user        User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  trip        Trip?         @relation(fields: [tripId], references: [id], onDelete: SetNull)
+
+  @@index([userId, date])
 }
 
 model ApiKey {
@@ -54,6 +90,7 @@ model Trip {
   updatedAt       DateTime  @updatedAt
   user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   legs            TripLeg[]
+  expense         Expense?
 
   @@index([userId, date])
 }
