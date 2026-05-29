@@ -8,15 +8,17 @@ datasource db {
 }
 
 model User {
-  id           String        @id @default(cuid())
-  email        String        @unique
-  name         String?
-  passwordHash String
-  createdAt    DateTime      @default(now())
-  settings     UserSettings?
-  trips        Trip[]
-  apiKeys      ApiKey[]
-  expenses     Expense[]
+  id               String            @id @default(cuid())
+  email            String            @unique
+  name             String?
+  passwordHash     String
+  createdAt        DateTime          @default(now())
+  settings         UserSettings?
+  trips            Trip[]
+  apiKeys          ApiKey[]
+  expenses         Expense[]
+  reimbursements   Reimbursement[]
+  webhookEndpoints WebhookEndpoint[]
 }
 
 enum ExpenseType {
@@ -36,22 +38,62 @@ enum ExpenseStatus {
 }
 
 model Expense {
-  id          String        @id @default(cuid())
-  userId      String
-  tripId      String?       @unique
-  type        ExpenseType
-  amount      Float
-  currency    String        @default("CAD")
-  date        DateTime      @default(now())
-  description String        @default("")
-  receiptUrl  String?
-  status      ExpenseStatus @default(PENDING)
-  createdAt   DateTime      @default(now())
-  updatedAt   DateTime      @updatedAt
-  user        User          @relation(fields: [userId], references: [id], onDelete: Cascade)
-  trip        Trip?         @relation(fields: [tripId], references: [id], onDelete: SetNull)
+  id              String         @id @default(cuid())
+  userId          String
+  tripId          String?        @unique
+  reimbursementId String?
+  type            ExpenseType
+  amount          Float
+  currency        String         @default("CAD")
+  date            DateTime       @default(now())
+  description     String         @default("")
+  receiptUrl      String?
+  status          ExpenseStatus  @default(PENDING)
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+  user            User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  trip            Trip?          @relation(fields: [tripId], references: [id], onDelete: SetNull)
+  reimbursement   Reimbursement? @relation(fields: [reimbursementId], references: [id], onDelete: SetNull)
 
   @@index([userId, date])
+  @@index([reimbursementId])
+}
+
+enum ReimbursementStatus {
+  DRAFT
+  SUBMITTED
+  APPROVED
+  PAID
+}
+
+model Reimbursement {
+  id          String              @id @default(cuid())
+  userId      String
+  title       String              @default("")
+  notes       String              @default("")
+  status      ReimbursementStatus @default(DRAFT)
+  submittedAt DateTime?
+  approvedAt  DateTime?
+  paidAt      DateTime?
+  createdAt   DateTime            @default(now())
+  updatedAt   DateTime            @updatedAt
+  user        User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expenses    Expense[]
+
+  @@index([userId, status])
+}
+
+model WebhookEndpoint {
+  id        String   @id @default(cuid())
+  userId    String
+  url       String
+  secret    String
+  enabled   Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
 }
 
 model ApiKey {

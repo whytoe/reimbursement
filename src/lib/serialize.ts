@@ -1,4 +1,10 @@
-import type { Expense, Trip, TripLeg } from "@prisma/client";
+import type {
+  Expense,
+  Reimbursement,
+  Trip,
+  TripLeg,
+  WebhookEndpoint,
+} from "@prisma/client";
 
 type TripWithLegs = Trip & { legs: TripLeg[] };
 
@@ -39,7 +45,41 @@ export function serializeExpense(expense: Expense) {
     receiptUrl: expense.receiptUrl,
     status: expense.status,
     tripId: expense.tripId,
+    reimbursementId: expense.reimbursementId,
     createdAt: expense.createdAt.toISOString(),
     updatedAt: expense.updatedAt.toISOString(),
+  };
+}
+
+type ReimbursementWithExpenses = Reimbursement & { expenses: Expense[] };
+
+/** Maps a persisted Reimbursement (with its expenses) into the v1 JSON shape. */
+export function serializeReimbursement(reimbursement: ReimbursementWithExpenses) {
+  return {
+    id: reimbursement.id,
+    title: reimbursement.title,
+    notes: reimbursement.notes,
+    status: reimbursement.status,
+    submittedAt: reimbursement.submittedAt?.toISOString() ?? null,
+    approvedAt: reimbursement.approvedAt?.toISOString() ?? null,
+    paidAt: reimbursement.paidAt?.toISOString() ?? null,
+    total: reimbursement.expenses.reduce((sum, e) => sum + e.amount, 0),
+    expenses: reimbursement.expenses.map(serializeExpense),
+    createdAt: reimbursement.createdAt.toISOString(),
+    updatedAt: reimbursement.updatedAt.toISOString(),
+  };
+}
+
+/**
+ * Maps a persisted WebhookEndpoint into the v1 JSON shape. The signing secret
+ * is intentionally omitted — it is returned only once, at registration time.
+ */
+export function serializeWebhookEndpoint(endpoint: WebhookEndpoint) {
+  return {
+    id: endpoint.id,
+    url: endpoint.url,
+    enabled: endpoint.enabled,
+    createdAt: endpoint.createdAt.toISOString(),
+    updatedAt: endpoint.updatedAt.toISOString(),
   };
 }

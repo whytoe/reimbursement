@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { requireApiKeyUser } from "@/lib/apiAuth";
 import { serializeExpense } from "@/lib/serialize";
 import { CreateExpenseSchema } from "@/lib/openapi/schemas";
+import { emitWebhookEvent } from "@/lib/webhooks";
 import type { Prisma } from "@prisma/client";
 
 export async function GET(request: NextRequest) {
@@ -108,5 +109,8 @@ export async function POST(request: NextRequest) {
     },
   });
 
-  return NextResponse.json(serializeExpense(expense), { status: 201 });
+  const serialized = serializeExpense(expense);
+  await emitWebhookEvent(userId, "expense.created", serialized);
+
+  return NextResponse.json(serialized, { status: 201 });
 }

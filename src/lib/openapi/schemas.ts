@@ -136,6 +136,86 @@ export const UpdateSettingsSchema = z
   })
   .openapi("UpdateSettingsRequest");
 
+export const ReimbursementStatusSchema = z
+  .enum(["DRAFT", "SUBMITTED", "APPROVED", "PAID"])
+  .openapi("ReimbursementStatus", { example: "DRAFT" });
+
+export const ReimbursementSchema = z
+  .object({
+    id: z.string(),
+    title: z.string(),
+    notes: z.string(),
+    status: ReimbursementStatusSchema,
+    submittedAt: z.string().nullable().openapi({ format: "date-time" }),
+    approvedAt: z.string().nullable().openapi({ format: "date-time" }),
+    paidAt: z.string().nullable().openapi({ format: "date-time" }),
+    total: z.number().openapi({ description: "Sum of grouped expense amounts", example: 128.75 }),
+    expenses: z.array(ExpenseSchema),
+    createdAt: z.string().openapi({ format: "date-time" }),
+    updatedAt: z.string().openapi({ format: "date-time" }),
+  })
+  .openapi("Reimbursement");
+
+export const CreateReimbursementSchema = z
+  .object({
+    title: z.string().max(500).default(""),
+    notes: z.string().max(2000).default(""),
+    expenseIds: z
+      .array(z.string())
+      .default([])
+      .openapi({ description: "IDs of the caller's expenses to group into this reimbursement" }),
+  })
+  .openapi("CreateReimbursementRequest");
+
+export const WebhookEventSchema = z
+  .enum([
+    "expense.created",
+    "reimbursement.submitted",
+    "reimbursement.approved",
+    "reimbursement.paid",
+  ])
+  .openapi("WebhookEvent", { example: "reimbursement.submitted" });
+
+export const WebhookEndpointSchema = z
+  .object({
+    id: z.string(),
+    url: z.string().openapi({ format: "uri", example: "https://example.com/hooks/wis" }),
+    enabled: z.boolean(),
+    createdAt: z.string().openapi({ format: "date-time" }),
+    updatedAt: z.string().openapi({ format: "date-time" }),
+  })
+  .openapi("WebhookEndpoint");
+
+export const CreateWebhookEndpointSchema = z
+  .object({
+    url: z.string().url().max(2000).openapi({ example: "https://example.com/hooks/wis" }),
+    enabled: z.boolean().default(true),
+  })
+  .openapi("CreateWebhookEndpointRequest");
+
+// Returned only once, at registration; includes the signing secret.
+export const WebhookEndpointWithSecretSchema = WebhookEndpointSchema.extend({
+  secret: z.string().openapi({
+    description: "HMAC-SHA256 signing secret. Shown once — store it securely.",
+    example: "whsec_xxxxxxxx",
+  }),
+}).openapi("WebhookEndpointWithSecret");
+
+export const WebhookPayloadSchema = z
+  .object({
+    id: z.string().openapi({ description: "Unique delivery/event id (UUID)" }),
+    event: WebhookEventSchema,
+    createdAt: z.string().openapi({ format: "date-time" }),
+    data: z
+      .record(z.string(), z.unknown())
+      .openapi({ type: "object", additionalProperties: true, description: "Event-specific resource (an Expense or Reimbursement)" }),
+  })
+  .openapi("WebhookPayload", {
+    description:
+      "Body POSTed to a registered endpoint. The `X-Webhook-Signature` header carries " +
+      "`sha256=<hex>`, an HMAC-SHA256 of the raw body keyed by the endpoint secret.",
+  });
+
 export const ErrorSchema = z
   .object({
     error: z.string().openapi({ example: "Invalid or missing API key" }),

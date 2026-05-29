@@ -5,15 +5,22 @@ import {
 import { z } from "zod";
 import {
   CreateExpenseSchema,
+  CreateReimbursementSchema,
   CreateTripSchema,
+  CreateWebhookEndpointSchema,
   ErrorSchema,
   ExpenseSchema,
   ExpenseStatusSchema,
   ExpenseTypeSchema,
+  ReimbursementSchema,
+  ReimbursementStatusSchema,
   SettingsSchema,
   TripSchema,
   UpdateExpenseSchema,
   UpdateSettingsSchema,
+  WebhookEndpointSchema,
+  WebhookEndpointWithSecretSchema,
+  WebhookPayloadSchema,
 } from "./schemas";
 
 function buildRegistry(): OpenAPIRegistry {
@@ -200,6 +207,155 @@ function buildRegistry(): OpenAPIRegistry {
     },
   });
 
+  registry.registerPath({
+    method: "get",
+    path: "/api/v1/reimbursements",
+    summary: "List reimbursements",
+    description:
+      "Returns all reimbursements for the authenticated user, newest first. " +
+      "Optionally filter by lifecycle status.",
+    tags: ["Reimbursements"],
+    security,
+    request: {
+      query: z.object({
+        status: ReimbursementStatusSchema.optional().openapi({ description: "Filter by status" }),
+      }),
+    },
+    responses: {
+      200: jsonResponse("List of reimbursements", z.array(ReimbursementSchema)),
+      401: errorResponse("Missing or invalid API key"),
+    },
+  });
+
+  registry.registerPath({
+    method: "post",
+    path: "/api/v1/reimbursements",
+    summary: "Create a reimbursement",
+    description:
+      "Creates a DRAFT reimbursement for the authenticated user, optionally grouping " +
+      "the caller's expenses by id. An expense may belong to at most one reimbursement.",
+    tags: ["Reimbursements"],
+    security,
+    request: {
+      body: { content: { "application/json": { schema: CreateReimbursementSchema } } },
+    },
+    responses: {
+      201: jsonResponse("Created reimbursement", ReimbursementSchema),
+      400: errorResponse("Invalid input"),
+      401: errorResponse("Missing or invalid API key"),
+      404: errorResponse("One or more expenses not found"),
+      409: errorResponse("An expense already belongs to a reimbursement"),
+    },
+  });
+
+  registry.registerPath({
+    method: "get",
+    path: "/api/v1/reimbursements/{id}",
+    summary: "Get a reimbursement",
+    description: "Returns a single reimbursement owned by the authenticated user.",
+    tags: ["Reimbursements"],
+    security,
+    request: {
+      params: z.object({ id: z.string().openapi({ description: "Reimbursement ID" }) }),
+    },
+    responses: {
+      200: jsonResponse("The reimbursement", ReimbursementSchema),
+      401: errorResponse("Missing or invalid API key"),
+      404: errorResponse("Reimbursement not found"),
+    },
+  });
+
+  const transitionPath = (
+    action: string,
+    summary: string,
+    description: string
+  ) =>
+    registry.registerPath({
+      method: "post",
+      path: `/api/v1/reimbursements/{id}/${action}`,
+      summary,
+      description,
+      tags: ["Reimbursements"],
+      security,
+      request: {
+        params: z.object({ id: z.string().openapi({ description: "Reimbursement ID" }) }),
+      },
+      responses: {
+        200: jsonResponse("Updated reimbursement", ReimbursementSchema),
+        401: errorResponse("Missing or invalid API key"),
+        404: errorResponse("Reimbursement not found"),
+        409: errorResponse("Invalid status transition"),
+      },
+    });
+
+  transitionPath(
+    "submit",
+    "Submit a reimbursement",
+    "Transitions a DRAFT reimbursement to SUBMITTED and emits `reimbursement.submitted`."
+  );
+  transitionPath(
+    "approve",
+    "Approve a reimbursement",
+    "Transitions a SUBMITTED reimbursement to APPROVED and emits `reimbursement.approved`."
+  );
+  transitionPath(
+    "mark-paid",
+    "Mark a reimbursement paid",
+    "Transitions an APPROVED reimbursement to PAID and emits `reimbursement.paid`."
+  );
+
+  registry.registerPath({
+    method: "get",
+    path: "/api/v1/webhooks",
+    summary: "List webhook endpoints",
+    description: "Returns the authenticated user's registered webhook endpoints (secrets omitted).",
+    tags: ["Webhooks"],
+    security,
+    responses: {
+      200: jsonResponse("List of webhook endpoints", z.array(WebhookEndpointSchema)),
+      401: errorResponse("Missing or invalid API key"),
+    },
+  });
+
+  registry.registerPath({
+    method: "post",
+    path: "/api/v1/webhooks",
+    summary: "Register a webhook endpoint",
+    description:
+      "Registers a URL to receive integration events. The response includes the signing " +
+      "secret exactly once; each delivery is signed with `X-Webhook-Signature: sha256=<hmac>`.",
+    tags: ["Webhooks"],
+    security,
+    request: {
+      body: { content: { "application/json": { schema: CreateWebhookEndpointSchema } } },
+    },
+    responses: {
+      201: jsonResponse("Registered endpoint (includes secret once)", WebhookEndpointWithSecretSchema),
+      400: errorResponse("Invalid input"),
+      401: errorResponse("Missing or invalid API key"),
+    },
+  });
+
+  registry.registerPath({
+    method: "delete",
+    path: "/api/v1/webhooks/{id}",
+    summary: "Delete a webhook endpoint",
+    description: "Removes a webhook endpoint owned by the authenticated user.",
+    tags: ["Webhooks"],
+    security,
+    request: {
+      params: z.object({ id: z.string().openapi({ description: "Webhook endpoint ID" }) }),
+    },
+    responses: {
+      204: { description: "Endpoint deleted" },
+      401: errorResponse("Missing or invalid API key"),
+      404: errorResponse("Webhook endpoint not found"),
+    },
+  });
+
+  // Documents the event body POSTed to registered endpoints (not a callable path).
+  registry.register("WebhookPayload", WebhookPayloadSchema);
+
   return registry;
 }
 
@@ -219,6 +375,8 @@ export function generateOpenApiDocument() {
     tags: [
       { name: "Trips", description: "Mileage trips and their legs" },
       { name: "Expenses", description: "Reimbursable expenses (mileage, meals, lodging, supplies, other)" },
+      { name: "Reimbursements", description: "Group expenses and move them through a DRAFT → SUBMITTED → APPROVED → PAID lifecycle" },
+      { name: "Webhooks", description: "Register endpoints to receive signed integration events" },
       { name: "Settings", description: "Per-user starting points and mileage rate" },
     ],
   });
