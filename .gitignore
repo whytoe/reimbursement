@@ -44,3 +44,8 @@ next-env.d.ts
 .dolt/
 *.db
 .beads-credential-key
+
+# Local agent context (not project work)
+CLAUDE.local.md
+.claude/
+.runtime/

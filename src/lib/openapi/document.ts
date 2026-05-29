@@ -91,6 +91,87 @@ function buildRegistry(): OpenAPIRegistry {
 
   registry.registerPath({
     method: "get",
+    path: "/api/v1/expenses",
+    summary: "List expenses",
+    description:
+      "Returns all expenses for the authenticated user, newest first. " +
+      "Optionally filter by date range, type, or status.",
+    tags: ["Expenses"],
+    security,
+    request: {
+      query: z.object({
+        from: z.string().optional().openapi({ description: "Inclusive start date (ISO 8601)" }),
+        to: z.string().optional().openapi({ description: "Inclusive end date (ISO 8601)" }),
+        type: ExpenseTypeSchema.optional().openapi({ description: "Filter by expense type" }),
+        status: ExpenseStatusSchema.optional().openapi({ description: "Filter by status" }),
+      }),
+    },
+    responses: {
+      200: jsonResponse("List of expenses", z.array(ExpenseSchema)),
+      401: errorResponse("Missing or invalid API key"),
+    },
+  });
+
+  registry.registerPath({
+    method: "post",
+    path: "/api/v1/expenses",
+    summary: "Create an expense",
+    description:
+      "Creates an expense for the authenticated user. Provide `tripId` to link a " +
+      "MILEAGE expense to a trip; if `amount` is omitted for such an expense it is " +
+      "computed from the trip distance and the user's mileage rate.",
+    tags: ["Expenses"],
+    security,
+    request: {
+      body: { content: { "application/json": { schema: CreateExpenseSchema } } },
+    },
+    responses: {
+      201: jsonResponse("Created expense", ExpenseSchema),
+      400: errorResponse("Invalid input"),
+      401: errorResponse("Missing or invalid API key"),
+      404: errorResponse("Linked trip not found"),
+      409: errorResponse("Trip already has a linked expense"),
+    },
+  });
+
+  registry.registerPath({
+    method: "get",
+    path: "/api/v1/expenses/{id}",
+    summary: "Get an expense",
+    description: "Returns a single expense owned by the authenticated user.",
+    tags: ["Expenses"],
+    security,
+    request: {
+      params: z.object({ id: z.string().openapi({ description: "Expense ID" }) }),
+    },
+    responses: {
+      200: jsonResponse("The expense", ExpenseSchema),
+      401: errorResponse("Missing or invalid API key"),
+      404: errorResponse("Expense not found"),
+    },
+  });
+
+  registry.registerPath({
+    method: "put",
+    path: "/api/v1/expenses/{id}",
+    summary: "Update an expense",
+    description: "Updates fields on an expense owned by the authenticated user.",
+    tags: ["Expenses"],
+    security,
+    request: {
+      params: z.object({ id: z.string().openapi({ description: "Expense ID" }) }),
+      body: { content: { "application/json": { schema: UpdateExpenseSchema } } },
+    },
+    responses: {
+      200: jsonResponse("Updated expense", ExpenseSchema),
+      400: errorResponse("Invalid input"),
+      401: errorResponse("Missing or invalid API key"),
+      404: errorResponse("Expense not found"),
+    },
+  });
+
+  registry.registerPath({
+    method: "get",
     path: "/api/v1/settings",
     summary: "Get settings",
     description: "Returns the authenticated user's starting points and mileage rate.",
@@ -130,13 +211,14 @@ export function generateOpenApiDocument() {
       title: "Which is shorter? — Integration API",
       version: "1.0.0",
       description:
-        "External integration API for mileage trips and settings. " +
+        "External integration API for mileage trips, expenses, and settings. " +
         "Authenticate machine-to-machine requests with an API key via the " +
         "`Authorization: Bearer` header.",
     },
     servers: [{ url: "/", description: "This deployment" }],
     tags: [
       { name: "Trips", description: "Mileage trips and their legs" },
+      { name: "Expenses", description: "Reimbursable expenses (mileage, meals, lodging, supplies, other)" },
       { name: "Settings", description: "Per-user starting points and mileage rate" },
     ],
   });
