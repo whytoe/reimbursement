@@ -55,6 +55,28 @@ function formatShortDate(iso: string) {
   });
 }
 
+/** Local YYYY-MM-DD (no timezone shift), for date inputs and the export API. */
+function toISODate(d: Date): string {
+  const p = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+}
+
+/** First and last day of a calendar month relative to today (0 = this month, -1 = last month). */
+function monthRange(offset: number): { from: string; to: string } {
+  const now = new Date();
+  const first = new Date(now.getFullYear(), now.getMonth() + offset, 1);
+  const last = new Date(now.getFullYear(), now.getMonth() + offset + 1, 0);
+  return { from: toISODate(first), to: toISODate(last) };
+}
+
+/** Bounds of a "YYYY-MM" month value from the month picker. */
+function monthValueRange(value: string): { from: string; to: string } {
+  const [y, m] = value.split("-").map(Number);
+  const first = new Date(y, m - 1, 1);
+  const last = new Date(y, m, 0);
+  return { from: toISODate(first), to: toISODate(last) };
+}
+
 export default function HistoryPage() {
   const router = useRouter();
   const { mileageRate } = useSettings();
@@ -98,6 +120,20 @@ export default function HistoryPage() {
   }, [trips, search]);
 
   const selectedTrip = selectedId ? trips.find((t) => t.id === selectedId) : null;
+
+  // Totals for the currently-selected export window (preview of the CSV contents).
+  const exportSummary = useMemo(() => {
+    const inRange = trips.filter((t) => {
+      const day = t.date.slice(0, 10);
+      return (!exportFrom || day >= exportFrom) && (!exportTo || day <= exportTo);
+    });
+    const totalKm = inRange.reduce((sum, t) => sum + t.totalKm, 0);
+    return {
+      count: inRange.length,
+      totalKm,
+      reimbursement: mileageRate > 0 ? totalKm * mileageRate : null,
+    };
+  }, [trips, exportFrom, exportTo, mileageRate]);
 
   const handleDelete = async (id: string) => {
     await fetch(`/api/trips/${id}`, { method: "DELETE" });
@@ -172,6 +208,42 @@ export default function HistoryPage() {
       {showExport && (
         <div className="mb-4 p-4 bg-slate-50 rounded-2xl space-y-3">
           <h3 className="text-sm font-semibold text-slate-700">Export to CSV</h3>
+
+          {/* Quick month selection for monthly reports */}
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={() => { const r = monthRange(0); setExportFrom(r.from); setExportTo(r.to); }}
+              className="min-h-[44px] px-4 rounded-xl border-2 border-slate-200 bg-white text-sm font-medium text-slate-700 hover:border-emerald-400 hover:bg-emerald-50 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500"
+            >
+              This month
+            </button>
+            <button
+              type="button"
+              onClick={() => { const r = monthRange(-1); setExportFrom(r.from); setExportTo(r.to); }}
+              className="min-h-[44px] px-4 rounded-xl border-2 border-slate-200 bg-white text-sm font-medium text-slate-700 hover:border-emerald-400 hover:bg-emerald-50 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500"
+            >
+              Last month
+            </button>
+            <div className="flex-1 min-w-[9rem]">
+              <label htmlFor="export-month" className="sr-only">Pick a month</label>
+              <input
+                id="export-month"
+                type="month"
+                value={exportFrom ? exportFrom.slice(0, 7) : ""}
+                onChange={(e) => {
+                  if (!e.target.value) return;
+                  const r = monthValueRange(e.target.value);
+                  setExportFrom(r.from);
+                  setExportTo(r.to);
+                }}
+                className="w-full min-h-[44px] px-3 py-2 rounded-xl border-2 border-slate-200 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-200"
+                style={{ fontSize: "16px" }}
+                aria-label="Pick a month to export"
+              />
+            </div>
+          </div>
+
           <div className="flex gap-2">
             <div className="flex-1">
               <label htmlFor="export-from" className="block text-xs font-medium text-slate-600 mb-1">From</label>
@@ -196,8 +268,24 @@ export default function HistoryPage() {
               />
             </div>
           </div>
-          <Button variant="secondary" onClick={handleExport}>
-            Download CSV
+          {/* Live summary of what will be exported */}
+          <div className="flex items-center justify-between text-sm px-1">
+            <span className="text-slate-600">
+              {exportSummary.count} trip{exportSummary.count !== 1 ? "s" : ""}
+              {(exportFrom || exportTo) ? " in range" : " (all)"}
+            </span>
+            <span className="font-semibold text-emerald-700">
+              {exportSummary.totalKm.toFixed(1)} km
+              {exportSummary.reimbursement !== null && ` · ${exportSummary.reimbursement.toFixed(2)}`}
+            </span>
+          </div>
+
+          <Button
+            variant="secondary"
+            onClick={handleExport}
+            disabled={exportSummary.count === 0}
+          >
+            {exportSummary.count === 0 ? "No trips in range" : "Download CSV"}
           </Button>
         </div>
       )}
