@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { fetchMaps } from "@/lib/maps";
 
 export async function POST(request: NextRequest) {
   const { origin, destination } = await request.json();
@@ -31,8 +32,9 @@ export async function POST(request: NextRequest) {
   url.searchParams.set("units", "metric");
   url.searchParams.set("key", apiKey);
 
-  const response = await fetch(url.toString());
-  const data = await response.json();
+  const upstream = await fetchMaps(url.toString(), "Distance Matrix");
+  if ("error" in upstream) return upstream.error;
+  const data = await upstream.response.json();
 
   if (
     data.status !== "OK" ||

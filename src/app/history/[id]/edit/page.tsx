@@ -233,6 +233,8 @@ export default function EditTripPage({ params }: { params: Promise<{ id: string 
                   onSelect={(loc) => handleAddressChange(idx, "from", loc)}
                   placeholder="Search new from address..."
                   autoFocus
+                  biasLocation={leg.to?.coords}
+                  country={leg.to?.country}
                 />
               ) : (
                 <button
@@ -253,6 +255,8 @@ export default function EditTripPage({ params }: { params: Promise<{ id: string 
                   onSelect={(loc) => handleAddressChange(idx, "to", loc)}
                   placeholder="Search new to address..."
                   autoFocus
+                  biasLocation={leg.from?.coords}
+                  country={leg.from?.country}
                 />
               ) : (
                 <button

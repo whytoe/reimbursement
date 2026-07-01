@@ -109,6 +109,8 @@ export function TripWizard() {
           onSelect={handleAddDestination}
           placeholder="Search for a destination..."
           autoFocus
+          biasLocation={startingPoints?.[0]?.coords}
+          country={startingPoints?.[0]?.country}
         />
 
         {error && (

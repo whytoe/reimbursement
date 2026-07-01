@@ -3,18 +3,25 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { searchAddresses, resolvePlace } from "@/lib/api";
 import type { AutocompletePrediction } from "@/lib/api";
-import type { Location } from "@/lib/types";
+import type { LatLng, Location } from "@/lib/types";
 
 interface AddressSearchProps {
   onSelect: (location: Location) => void;
   placeholder?: string;
   autoFocus?: boolean;
+  /** Anchor to bias results toward (the user's starting point). Preferred over
+   *  the device's geolocation, which is often imprecise on desktop. */
+  biasLocation?: LatLng;
+  /** ISO 3166-1 alpha-2 country code to restrict results to (e.g. "US"). */
+  country?: string;
 }
 
 export function AddressSearch({
   onSelect,
   placeholder = "Type an address...",
   autoFocus = false,
+  biasLocation,
+  country,
 }: AddressSearchProps) {
   const [query, setQuery] = useState("");
   const [predictions, setPredictions] = useState<AutocompletePrediction[]>([]);
@@ -55,8 +62,11 @@ export function AddressSearch({
     setIsSearching(true);
     setError(null);
 
+    // Prefer the explicit anchor (starting point); fall back to device location.
+    const bias = biasLocation ?? userLocationRef.current;
+
     try {
-      const res = await searchAddresses(q, userLocationRef.current);
+      const res = await searchAddresses(q, bias, country);
       setPredictions(res);
     } catch {
       setError("Search failed. Please try again.");
@@ -64,7 +74,7 @@ export function AddressSearch({
     } finally {
       setIsSearching(false);
     }
-  }, []);
+  }, [biasLocation, country]);
 
   // Auto-search as user types (debounced)
   useEffect(() => {
@@ -94,6 +104,7 @@ export function AddressSearch({
         onSelect({
           address: result.formatted_address,
           coords: { lat: result.lat, lng: result.lng },
+          country: result.country,
         });
       } catch {
         setError("Could not resolve address. Please try again.");

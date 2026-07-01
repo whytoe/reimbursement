@@ -6,6 +6,9 @@ export interface LatLng {
 export interface Location {
   address: string;
   coords: LatLng;
+  /** ISO 3166-1 alpha-2 country code (e.g. "US"), when known. Used to
+   *  restrict address autocomplete to the same country. */
+  country?: string;
 }
 
 export interface TripLeg {
@@ -55,4 +58,6 @@ export interface GeocodeResult {
   formatted_address: string;
   lat: number;
   lng: number;
+  /** ISO 3166-1 alpha-2 country code from the resolved place, when present. */
+  country?: string;
 }

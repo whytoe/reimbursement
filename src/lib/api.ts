@@ -7,12 +7,13 @@ export interface AutocompletePrediction {
 
 export async function searchAddresses(
   query: string,
-  userLocation?: { lat: number; lng: number }
+  userLocation?: { lat: number; lng: number },
+  country?: string
 ): Promise<AutocompletePrediction[]> {
   const res = await fetch("/api/autocomplete", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ query, userLocation }),
+    body: JSON.stringify({ query, userLocation, country }),
   });
 
   if (!res.ok) {

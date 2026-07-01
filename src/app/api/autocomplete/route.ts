@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
+import { fetchMaps } from "@/lib/maps";
 
 export async function POST(request: NextRequest) {
-  const { query, userLocation } = await request.json();
+  const { query, userLocation, country } = await request.json();
 
   if (!query || typeof query !== "string" || query.trim().length === 0) {
     return NextResponse.json({ error: "Query is required" }, { status: 400 });
@@ -21,7 +22,14 @@ export async function POST(request: NextRequest) {
   url.searchParams.set("input", query.trim());
   url.searchParams.set("key", apiKey);
 
-  // Bias results toward user's current location
+  // Restrict results to a single country when known (from the user's starting
+  // point). Drops irrelevant other-country matches.
+  if (country && typeof country === "string" && /^[A-Za-z]{2}$/.test(country)) {
+    url.searchParams.set("components", `country:${country.toLowerCase()}`);
+  }
+
+  // Bias results toward the caller's anchor point (the user's starting point,
+  // or their device location as a fallback).
   if (
     userLocation &&
     typeof userLocation.lat === "number" &&
@@ -36,8 +44,9 @@ export async function POST(request: NextRequest) {
     url.searchParams.set("radius", "50000"); // 50km bias radius
   }
 
-  const response = await fetch(url.toString());
-  const data = await response.json();
+  const upstream = await fetchMaps(url.toString(), "Places Autocomplete");
+  if ("error" in upstream) return upstream.error;
+  const data = await upstream.response.json();
 
   if (data.status !== "OK" && data.status !== "ZERO_RESULTS") {
     console.error(
