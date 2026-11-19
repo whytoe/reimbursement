@@ -4,6 +4,7 @@ import { useState } from "react";
 import type { TripLeg, Location } from "@/lib/types";
 import { TripLegCard } from "./TripLegCard";
 import { Button } from "./Button";
+import { dateInputToIso } from "@/lib/dates";
 
 interface TripSummaryProps {
   legs: TripLeg[];
@@ -47,8 +48,7 @@ export function TripSummary({
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          // Local noon avoids the date shifting a day when converted to UTC.
-          date: new Date(`${date}T12:00:00`).toISOString(),
+          date: dateInputToIso(date),
           totalKm,
           purpose,
           notes,

@@ -8,15 +8,10 @@ import { TripLegCard } from "./TripLegCard";
 import { TripSummary } from "./TripSummary";
 import { Button } from "./Button";
 import type { Location } from "@/lib/types";
+import { todayDateInputValue } from "@/lib/dates";
 
 const ROUND_TRIP_KEY = "wis:roundTrip";
 
-function todayLocal(): string {
-  const d = new Date();
-  const mm = String(d.getMonth() + 1).padStart(2, "0");
-  const dd = String(d.getDate()).padStart(2, "0");
-  return `${d.getFullYear()}-${mm}-${dd}`;
-}
 
 export function TripWizard() {
   const { startingPoints, mileageRate } = useSettings();
@@ -42,7 +37,7 @@ export function TripWizard() {
       : window.localStorage.getItem(ROUND_TRIP_KEY) !== "false"
   );
   // Trip date carries over between trips so a batch of past trips can be entered quickly.
-  const [tripDate, setTripDate] = useState(todayLocal);
+  const [tripDate, setTripDate] = useState(todayDateInputValue);
 
   const handleRoundTripChange = (value: boolean) => {
     setRoundTrip(value);
@@ -107,7 +102,7 @@ export function TripWizard() {
           </div>
           <Button
             onClick={() => {
-              setTripDate(todayLocal());
+              setTripDate(todayDateInputValue());
               startTrip();
             }}
           >

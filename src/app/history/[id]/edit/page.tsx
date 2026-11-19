@@ -6,6 +6,7 @@ import { AddressSearch } from "@/components/AddressSearch";
 import { Button } from "@/components/Button";
 import { getDistance } from "@/lib/api";
 import type { Location, TripLeg } from "@/lib/types";
+import { dateInputToIso, toDateInputValue } from "@/lib/dates";
 
 interface DbTripLeg {
   id: string;
@@ -63,7 +64,7 @@ export default function EditTripPage({ params }: { params: Promise<{ id: string 
         setLegs(data.legs.map(dbLegToTripLeg));
         setPurpose(data.purpose);
         setNotes(data.notes);
-        setDate(new Date(data.date).toISOString().split("T")[0]);
+        setDate(toDateInputValue(new Date(data.date)));
       } catch {
         setError("Trip not found");
       } finally {
@@ -113,7 +114,7 @@ export default function EditTripPage({ params }: { params: Promise<{ id: string 
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          date: new Date(date).toISOString(),
+          date: dateInputToIso(date),
           totalKm,
           purpose,
           notes,

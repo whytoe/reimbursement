@@ -6,6 +6,7 @@ import { useSettings } from "@/hooks/useSettings";
 import { TripLegCard } from "@/components/TripLegCard";
 import { Button } from "@/components/Button";
 import type { TripLeg } from "@/lib/types";
+import { toDateInputValue } from "@/lib/dates";
 
 interface DbTripLeg {
   id: string;
@@ -124,7 +125,7 @@ export default function HistoryPage() {
   // Totals for the currently-selected export window (preview of the CSV contents).
   const exportSummary = useMemo(() => {
     const inRange = trips.filter((t) => {
-      const day = t.date.slice(0, 10);
+      const day = toDateInputValue(new Date(t.date));
       return (!exportFrom || day >= exportFrom) && (!exportTo || day <= exportTo);
     });
     const totalKm = inRange.reduce((sum, t) => sum + t.totalKm, 0);
@@ -145,6 +146,7 @@ export default function HistoryPage() {
     const params = new URLSearchParams();
     if (exportFrom) params.set("from", exportFrom);
     if (exportTo) params.set("to", exportTo);
+    params.set("tz", Intl.DateTimeFormat().resolvedOptions().timeZone);
     const res = await fetch(`/api/trips/export?${params}`);
     const blob = await res.blob();
     const url = URL.createObjectURL(blob);

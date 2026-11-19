@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getRequiredUserId } from "@/lib/session";
+import { dateInZone, startOfDayInZone, startOfNextDayInZone, validTimeZone } from "@/lib/dates";
 
 export async function GET(request: NextRequest) {
   try {
@@ -9,16 +10,24 @@ export async function GET(request: NextRequest) {
 
     const from = searchParams.get("from");
     const to = searchParams.get("to");
+    // Optional IANA timezone (e.g. "America/Vancouver"). When given, the range
+    // and the CSV Date column use the user's calendar days instead of UTC.
+    const tz = validTimeZone(searchParams.get("tz"));
 
-    const where: { userId: string; date?: { gte?: Date; lte?: Date } } = { userId };
+    const where: { userId: string; date?: { gte?: Date; lte?: Date; lt?: Date } } = { userId };
 
     if (from || to) {
       where.date = {};
-      if (from) where.date.gte = new Date(from);
-      if (to) {
-        const toDate = new Date(to);
-        toDate.setHours(23, 59, 59, 999);
-        where.date.lte = toDate;
+      if (tz) {
+        if (from) where.date.gte = startOfDayInZone(from, tz);
+        if (to) where.date.lt = startOfNextDayInZone(to, tz);
+      } else {
+        if (from) where.date.gte = new Date(from);
+        if (to) {
+          const toDate = new Date(to);
+          toDate.setHours(23, 59, 59, 999);
+          where.date.lte = toDate;
+        }
       }
     }
 
@@ -33,7 +42,9 @@ export async function GET(request: NextRequest) {
 
     const headers = ["Date", "Start", "End", "Purpose", "Notes", "Km", "Reimbursement"];
     const rows = trips.map((trip) => {
-      const date = new Date(trip.date).toISOString().split("T")[0];
+      const date = tz
+        ? dateInZone(new Date(trip.date), tz)
+        : new Date(trip.date).toISOString().split("T")[0];
       const start = trip.legs[0]?.fromAddr ?? "";
       const end = trip.legs[trip.legs.length - 1]?.toAddr ?? "";
       const reimbursement = rate > 0 ? (trip.totalKm * rate).toFixed(2) : "";
