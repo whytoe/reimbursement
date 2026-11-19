@@ -44,6 +44,8 @@ next-env.d.ts
 .dolt/
 *.db
 .beads-credential-key
+.beads/proxieddb/
+*.gate.lock*
 
 # Local agent context (not project work)
 CLAUDE.local.md
