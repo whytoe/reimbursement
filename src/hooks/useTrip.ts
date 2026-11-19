@@ -12,7 +12,7 @@ const initialState: TripState = {
   totalKm: 0,
 };
 
-function tripReducer(state: TripState, action: TripAction): TripState {
+export function tripReducer(state: TripState, action: TripAction): TripState {
   switch (action.type) {
     case "START_TRIP":
       return { ...state, phase: "entering-destination" };
@@ -39,10 +39,22 @@ function tripReducer(state: TripState, action: TripAction): TripState {
         legs: [...state.legs, action.payload],
         totalKm: state.totalKm + action.payload.distanceKm,
       };
+    case "ROUND_TRIP_COMPUTED": {
+      const [outbound, inbound] = action.payload;
+      return {
+        ...state,
+        phase: "summary",
+        selectedStart: outbound.from,
+        legs: [outbound, inbound],
+        totalKm: outbound.distanceKm + inbound.distanceKm,
+      };
+    }
     case "COMPUTE_ERROR":
       return { ...state, phase: action.fallbackPhase };
     case "RESET":
       return initialState;
+    case "START_NEXT_TRIP":
+      return { ...initialState, phase: "entering-destination" };
     default:
       return state;
   }
@@ -56,7 +68,7 @@ export function useTrip(startingPoints: [Location, Location] | null) {
   }, []);
 
   const addDestination = useCallback(
-    async (destination: Location) => {
+    async (destination: Location, options: { roundTrip?: boolean } = {}) => {
       dispatch({ type: "SET_COMPUTING" });
 
       try {
@@ -68,6 +80,21 @@ export function useTrip(startingPoints: [Location, Location] | null) {
           from = d0 <= d1 ? startingPoints[0] : startingPoints[1];
         } else {
           from = state.legs[state.legs.length - 1].to;
+        }
+
+        if (options.roundTrip && state.legs.length === 0) {
+          const [out, back] = await Promise.all([
+            getDistance(from.coords, destination.coords),
+            getDistance(destination.coords, from.coords),
+          ]);
+          dispatch({
+            type: "ROUND_TRIP_COMPUTED",
+            payload: [
+              { from, to: destination, distanceKm: out.distanceKm },
+              { from: destination, to: from, distanceKm: back.distanceKm },
+            ],
+          });
+          return;
         }
 
         const { distanceKm } = await getDistance(from.coords, destination.coords);
@@ -113,8 +140,13 @@ export function useTrip(startingPoints: [Location, Location] | null) {
     dispatch({ type: "RESET" });
   }, []);
 
+  const startNextTrip = useCallback(() => {
+    dispatch({ type: "START_NEXT_TRIP" });
+  }, []);
+
   return {
     state,
+    startNextTrip,
     startTrip,
     addDestination,
     addAnotherStop,

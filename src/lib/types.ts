@@ -40,8 +40,10 @@ export type TripAction =
   | { type: "FINISH_TRIP" }
   | { type: "END_HERE" }
   | { type: "RETURN_LEG_COMPUTED"; payload: TripLeg }
+  | { type: "ROUND_TRIP_COMPUTED"; payload: [TripLeg, TripLeg] }
   | { type: "COMPUTE_ERROR"; fallbackPhase: TripPhase }
-  | { type: "RESET" };
+  | { type: "RESET" }
+  | { type: "START_NEXT_TRIP" };
 
 export interface CompletedTrip {
   id: string;

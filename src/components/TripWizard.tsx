@@ -9,6 +9,15 @@ import { TripSummary } from "./TripSummary";
 import { Button } from "./Button";
 import type { Location } from "@/lib/types";
 
+const ROUND_TRIP_KEY = "wis:roundTrip";
+
+function todayLocal(): string {
+  const d = new Date();
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  const dd = String(d.getDate()).padStart(2, "0");
+  return `${d.getFullYear()}-${mm}-${dd}`;
+}
+
 export function TripWizard() {
   const { startingPoints, mileageRate } = useSettings();
   const {
@@ -20,14 +29,41 @@ export function TripWizard() {
     endHere,
     returnToStart,
     reset,
+    startNextTrip,
   } = useTrip(startingPoints);
 
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
+  // Round trip is on by default; the user's last choice is remembered.
+  // Safe to read localStorage here: the toggle only renders after user interaction, never on SSR.
+  const [roundTrip, setRoundTrip] = useState(() =>
+    typeof window === "undefined"
+      ? true
+      : window.localStorage.getItem(ROUND_TRIP_KEY) !== "false"
+  );
+  // Trip date carries over between trips so a batch of past trips can be entered quickly.
+  const [tripDate, setTripDate] = useState(todayLocal);
+
+  const handleRoundTripChange = (value: boolean) => {
+    setRoundTrip(value);
+    window.localStorage.setItem(ROUND_TRIP_KEY, String(value));
+  };
+
+  const handleSaved = () => {
+    setNotice("Trip saved");
+    startNextTrip();
+  };
+
+  const handleDiscard = () => {
+    setNotice(null);
+    reset();
+  };
 
   const handleAddDestination = async (location: Location) => {
     setError(null);
+    setNotice(null);
     try {
-      await addDestination(location);
+      await addDestination(location, { roundTrip });
     } catch {
       setError("Failed to calculate distance. Please try again.");
     }
@@ -69,7 +105,14 @@ export function TripWizard() {
               Start tracking your trip distance
             </p>
           </div>
-          <Button onClick={startTrip}>Start New Trip</Button>
+          <Button
+            onClick={() => {
+              setTripDate(todayLocal());
+              startTrip();
+            }}
+          >
+            Start New Trip
+          </Button>
         </div>
       </div>
     );
@@ -80,16 +123,50 @@ export function TripWizard() {
     const isFirstLeg = state.legs.length === 0;
     return (
       <div className="px-4 py-6 max-w-lg mx-auto space-y-6">
+        {notice && (
+          <div
+            className="rounded-2xl bg-emerald-50 border border-emerald-200 px-4 py-3 text-emerald-700 font-semibold text-center"
+            role="status"
+          >
+            {notice}
+          </div>
+        )}
         <div>
           <h2 className="text-2xl font-bold text-slate-800">
             {isFirstLeg ? "Where are you going?" : "Next stop?"}
           </h2>
           <p className="text-slate-500 mt-1">
             {isFirstLeg
-              ? "Enter your first destination"
+              ? roundTrip
+                ? "Enter your destination — we'll add the trip back"
+                : "Enter your first destination"
               : "Add your next destination"}
           </p>
         </div>
+
+        {isFirstLeg && (
+          <label className="flex items-center justify-between gap-4 min-h-[56px] px-4 rounded-2xl border-2 border-slate-200 bg-white cursor-pointer has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-emerald-500">
+            <span>
+              <span className="block text-lg font-semibold text-slate-700">
+                Round trip
+              </span>
+              <span className="block text-sm text-slate-500">
+                Return to your starting point
+              </span>
+            </span>
+            <input
+              type="checkbox"
+              role="switch"
+              checked={roundTrip}
+              onChange={(e) => handleRoundTripChange(e.target.checked)}
+              className="peer sr-only"
+            />
+            <span
+              aria-hidden="true"
+              className="relative inline-block h-8 w-14 shrink-0 rounded-full bg-slate-300 transition-colors peer-checked:bg-emerald-600 after:absolute after:top-1 after:left-1 after:h-6 after:w-6 after:rounded-full after:bg-white after:shadow after:transition-transform peer-checked:after:translate-x-6"
+            />
+          </label>
+        )}
 
         {state.legs.length > 0 && (
           <div className="space-y-2">
@@ -222,7 +299,10 @@ export function TripWizard() {
           totalKm={state.totalKm}
           mileageRate={mileageRate}
           selectedStart={state.selectedStart}
-          onReset={reset}
+          date={tripDate}
+          onDateChange={setTripDate}
+          onSaved={handleSaved}
+          onDiscard={handleDiscard}
         />
       </div>
     );
